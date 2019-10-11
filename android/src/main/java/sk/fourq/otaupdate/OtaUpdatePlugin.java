@@ -52,10 +52,15 @@ public class OtaUpdatePlugin implements EventChannel.StreamHandler, PluginRegist
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
+            
                 if (progressSink != null) {
-                    progressSink.success(Arrays.asList("" + OtaStatus.DOWNLOADING.ordinal(), "" + ((msg.arg1 * 100) / msg.arg2)));
+                    Bundle data=msg.getData();
+                    long bytes_downloaded = data.getLong("bytes_downloaded");
+                    long bytes_total = data.getLong("bytes_total");
+
+                    Log.i(TAG, "bytes_downloaded= "+bytes_downloaded+"  bytes_total :"+bytes_total+ " percent="+ (int)((bytes_downloaded * 100.0) /bytes_total));
+                    progressSink.success(Arrays.asList("" + OtaStatus.DOWNLOADING.ordinal(), "" + (int)((bytes_downloaded * 100.0) /bytes_total)));
                 }
-            }
         };
     }
 
@@ -200,13 +205,18 @@ public class OtaUpdatePlugin implements EventChannel.StreamHandler, PluginRegist
                     Cursor c = manager.query(q);
                     c.moveToFirst();
                     //PUSH THE STATUS THROUGH THE SINK
-                    int bytes_downloaded = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                    int bytes_total = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    long bytes_downloaded = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    long bytes_total = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
                     if (progressSink != null) {
                         Message message = new Message();
-                        message.arg1 = bytes_downloaded;
-                        message.arg2 = bytes_total;
+                        message.arg1 = 1;
+                        message.arg2 = 100;
+                        Bundle data = new Bundle();
+                        data.putLong("bytes_downloaded",bytes_downloaded);
+                        data.putLong("bytes_total",bytes_total);
+                        message.setData(data);
                         handler.sendMessage(message);
+                        Log.i(TAG, "bytes_downloaded= "+bytes_downloaded+"  bytes_total :"+bytes_total);
                     }
                     //STOP CYCLE IF DOWNLOAD IS COMPLETE
                     if (c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL) {
